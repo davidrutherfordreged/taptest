@@ -1,0 +1,124 @@
+import static com.github.zhurlik.Ver.V_1_1
+import org.gradle.plugins.ide.eclipse.model.Facet.FacetType
+import org.gradle.plugins.ide.eclipse.model.WbResource
+import org.gradle.plugins.ide.eclipse.model.WbDependentModule
+
+plugins {
+  id "com.github.zhurlik.jbossmodules" version "0.18"
+}
+
+description = "taptest application"
+
+apply plugin: "war"
+apply plugin: "java"
+apply plugin: 'eclipse'
+apply plugin: 'eclipse-wtp'
+
+sourceCompatibility = "1.8"
+targetCompatibility = "1.8"
+
+group = "com.reged"
+version = "0.0.1-SNAPSHOT"
+
+eclipse {
+
+	classpath {
+		downloadSources = true
+		downloadJavadoc = true
+	}
+	jdt {
+		sourceCompatibility = 1.8
+		targetCompatibility = 1.8
+	}
+	wtp {
+	    component {
+	        minusConfigurations << configurations.compile
+	    }
+	    facet {
+	        facet name: 'jst.web', version: '3.0'
+	        file {
+	            whenMerged { w ->
+	                facets.removeAll { it.name == 'jst.web' && it.version != "3.0" && it.type == FacetType.installed}
+	            }
+	        }
+	    }
+	}
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '3.1'
+}
+
+repositories {
+    mavenCentral()
+
+}
+
+configurations {
+    provided
+    jbossmodules.extendsFrom compile
+}
+
+configurations.compile {
+    exclude group: 'log4j'
+    exclude group: 'org.slf4j'
+}
+
+sourceSets {
+    main {
+        compileClasspath += configurations.provided
+    }
+    test {
+        compileClasspath += configurations.provided
+        runtimeClasspath += configurations.provided
+    }
+}
+ext.tapestryVersion = '5.3.8'
+
+dependencies {
+
+    compile "org.apache.tapestry:tapestry-core:${tapestryVersion}"
+    compile "org.apache.tapestry:tapestry-spring:${tapestryVersion}"
+    compile "org.apache.tapestry:tapestry-beanvalidator:${tapestryVersion}"
+    compile "org.apache.tapestry:tapestry-yuicompressor:${tapestryVersion}"
+     
+    provided "javax.servlet:servlet-api:2.5"
+}
+
+jbossrepos {
+    'jboss' {
+        version = V_1_1
+    }
+}
+
+modules {
+    tapestry {
+        moduleName = "tapestry"
+        slot = '5.3.8'
+        dependencies = [
+            [name: "javax.api", export: "true"],
+            [name: "javax.annotation.api", export: "true"],
+            [name: "javax.servlet.api", export: "true"],
+            [name: "org.apache.log4j", export: "true"],
+            [name: "org.slf4j", export: "true"],
+        ]
+    }
+}
+
+task addResourcesToModules << { 
+    configurations.compile.each {
+        modules.tapestry.resources.add([name: ${it.getName()}])
+    }
+}
+makeModules.dependsOn addResourcesToModules
+build.finalizedBy war
+
+
+war {
+    classpath = configurations.runtime
+    
+    rootSpec.filesMatching('*.jar') { details ->
+        details.exclude()
+    }
+    
+}
